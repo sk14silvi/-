@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>顧客対応履歴管理ツール v2</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#f4f4f0;color:#1a1a1a}
+.container{max-width:700px;margin:0 auto;padding:1rem}
+h1{font-size:15px;font-weight:700;text-align:center;padding:14px;background:#1a1a2e;color:#fff;margin-bottom:1rem;border-radius:10px;letter-spacing:0.05em}
+.tabs{display:flex;margin-bottom:1rem;border:1px solid #ddd;border-radius:8px;overflow:hidden}
+.tab{flex:1;padding:10px;font-size:13px;font-weight:600;cursor:pointer;background:#f0f0eb;color:#888;border:none;transition:all 0.15s;text-align:center}
+.tab.active{background:#fff;color:#1a1a2e}
+.section{background:#fff;border:1px solid #e4e4e0;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1rem}
+.sec-title{font-size:11px;font-weight:700;color:#aaa;margin-bottom:14px;letter-spacing:0.1em;text-transform:uppercase}
+.field{margin-bottom:13px}
+.field label{display:block;font-size:13px;color:#555;margin-bottom:5px;font-weight:500}
+.field input,.field select,.field textarea{width:100%;font-size:14px;padding:9px 11px;border:1px solid #ddd;border-radius:7px;background:#fafaf8;color:#1a1a1a;outline:none;transition:border 0.15s;-webkit-appearance:none}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:#1a1a2e;background:#fff}
+.field textarea{resize:vertical;min-height:90px;line-height:1.6}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn-row{display:flex;gap:8px;margin-top:6px}
+.btn{padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:#1a1a1a;flex:1;transition:all 0.15s;display:flex;align-items:center;justify-content:center;gap:5px}
+.btn:hover{background:#f5f5f0}
+.btn:disabled{opacity:0.4;cursor:not-allowed}
+.btn.primary{background:#1a1a2e;color:#fff;border-color:#1a1a2e}
+.btn.primary:hover{opacity:0.88}
+.btn.success{background:#f0faf0;color:#1b5e20;border-color:#a5d6a7}
+.btn.success:hover{background:#e0f5e0}
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;line-height:1.4}
+.tag-blue{background:#e8f0fe;color:#1a56cc}
+.tag-amber{background:#fff3e0;color:#e65100}
+.tag-red{background:#ffebee;color:#c62828}
+.tag-green{background:#e8f5e9;color:#2e7d32}
+.tag-gray{background:#f5f5f5;color:#666}
+.tag-purple{background:#f3e8fd;color:#6a1b9a}
+.tag-ok{background:#e8f5e9;color:#2e7d32}
+.history-item{border:1px solid #eee;border-radius:9px;padding:13px;margin-bottom:9px;background:#fafaf8;transition:box-shadow 0.15s}
+.history-item:hover{box-shadow:0 2px 8px rgba(0,0,0,0.08)}
+.history-item.urgent{border-left:4px solid #e53935;background:#fff8f8}
+.history-item.caution{border-left:4px solid #fb8c00;background:#fffdf8}
+.history-meta{display:flex;align-items:center;gap:5px;margin-bottom:5px;flex-wrap:wrap}
+.history-client{font-size:15px;font-weight:700;color:#1a1a2e;margin-bottom:4px}
+.history-subject{margin-bottom:7px}
+.history-time{font-size:11px;color:#aaa}
+.history-content{font-size:13px;color:#333;line-height:1.7;margin-bottom:9px;white-space:pre-wrap}
+.gas-setup{background:#f8f8f5;border:1px solid #e8e8e4;border-radius:8px;padding:14px;margin-bottom:14px}
+.gas-url-row{display:flex;gap:6px;margin-top:8px}
+.gas-url-row input{flex:1;font-size:12px;padding:8px 10px;border:1px solid #ddd;border-radius:7px;background:#fff}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px}
+.dot-ok{background:#2e7d32}
+.dot-ng{background:#c62828}
+.dot-pending{background:#e65100}
+.spinner{display:inline-block;width:13px;height:13px;border:2px solid #ddd;border-top-color:#1a1a2e;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.filter-row{display:flex;gap:6px;margin-bottom:13px;flex-wrap:wrap}
+.filter-btn{padding:5px 13px;border:1px solid #ddd;border-radius:20px;font-size:12px;cursor:pointer;background:#fff;color:#666;transition:all 0.15s;font-weight:500}
+.filter-btn.active{background:#1a1a2e;color:#fff;border-color:#1a1a2e}
+.badge-count{display:inline-block;background:#f0f0eb;border:1px solid #e0e0db;border-radius:20px;padding:2px 10px;font-size:12px;color:#888;margin-left:7px}
+.empty{text-align:center;padding:2.5rem;color:#bbb;font-size:13px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:11px 26px;border-radius:22px;font-size:13px;font-weight:500;opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:999;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.2)}
+.toast.show{opacity:1}
+.save-status{margin-top:9px;font-size:12px;text-align:center;min-height:18px}
+.divider{border:none;border-top:1px solid #eee;margin:10px 0}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>📋 顧客対応履歴管理ツール</h1>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('input',this)">✏️ 新規記録</button>
+  <button class="tab" onclick="switchTab('history',this)">📋 履歴一覧</button>
+  <button class="tab" onclick="switchTab('settings',this)">⚙️ 設定</button>
+</div>
+
+<!-- 新規記録 -->
+<div id="tab-input">
+  <div class="section">
+    <div class="sec-title">顧客・対応情報</div>
+    <div class="field">
+      <label>顧客名 <span style="color:#e53935">*</span></label>
+      <input id="inp-client" type="text" placeholder="例：山田商事 山田太郎様">
+    </div>
+    <div class="field">
+      <label>表題 <span style="color:#888;font-size:12px;font-weight:400">（対応の件名）</span></label>
+      <input id="inp-subject" type="text" placeholder="例：車の入替、解約、新規加入、更新対応、事故受付、生保見直し…">
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>担当者 <span style="color:#e53935">*</span></label>
+        <select id="inp-staff">
+          <option value="">選択してください</option>
+          <option>会長</option>
+          <option>社長</option>
+          <option>半田</option>
+          <option>今中</option>
+          <option>松本</option>
+          <option>福井</option>
+          <option>片岡</option>
+          <option>北村（知）</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>対応種別</label>
+        <select id="inp-type">
+          <option value="電話">📞 電話</option>
+          <option value="訪問">🚗 訪問</option>
+          <option value="来店">🏢 来店</option>
+          <option value="メール">✉️ メール</option>
+          <option value="LINE">💬 LINE</option>
+          <option value="その他">📝 その他</option>
+        </select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>対応日時</label>
+        <input id="inp-date" type="datetime-local">
+      </div>
+      <div class="field">
+        <label>緊急度</label>
+        <select id="inp-priority">
+          <option value="通常">通常</option>
+          <option value="要対応">要対応</option>
+          <option value="至急">至急</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>対応内容 <span style="color:#e53935">*</span></label>
+      <textarea id="inp-content" placeholder="対応内容を入力&#10;例：次回更新について問い合わせあり。車両保険の見直し希望。来週中に提案書送付予定。"></textarea>
+    </div>
+    <div class="field">
+      <label>次回アクション</label>
+      <input id="inp-next" type="text" placeholder="例：提案書送付、折り返し電話、訪問予定など">
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" id="btn-save" onclick="saveRecord()">💾 記録する</button>
+      <button class="btn" onclick="clearForm()">✕ クリア</button>
+    </div>
+    <div class="save-status" id="save-status"></div>
+  </div>
+</div>
+
+<!-- 履歴一覧 -->
+<div id="tab-history" style="display:none">
+  <div class="section">
+    <div style="display:flex;align-items:center;margin-bottom:13px">
+      <span class="sec-title" style="margin:0">対応履歴</span>
+      <span class="badge-count" id="rec-count">0件</span>
+      <button class="btn" style="flex:0;margin-left:auto;padding:6px 13px;font-size:12px" onclick="loadFromSheet()">🔄 更新</button>
+    </div>
+    <div class="filter-row">
+      <button class="filter-btn active" onclick="setFilter('all',this)">すべて</button>
+      <button class="filter-btn" onclick="setFilter('至急',this)">🔴 至急</button>
+      <button class="filter-btn" onclick="setFilter('要対応',this)">🟠 要対応</button>
+      <button class="filter-btn" onclick="setFilter('電話',this)">📞 電話</button>
+      <button class="filter-btn" onclick="setFilter('訪問',this)">🚗 訪問</button>
+    </div>
+    <div id="history-list"><div class="empty">「🔄 更新」を押してください</div></div>
+  </div>
+</div>
+
+<!-- 設定 -->
+<div id="tab-settings" style="display:none">
+  <div class="section">
+    <div class="sec-title">Google Apps Script 連携設定</div>
+    <div class="gas-setup">
+      <div style="font-size:13px;color:#555;line-height:1.9;margin-bottom:10px">
+        <strong style="color:#1a1a2e">設定手順：</strong><br>
+        ① Googleスプレッドシートを新規作成<br>
+        ② 拡張機能 → Apps Script を開く<br>
+        ③ GASコード（v2）を貼り付けて保存<br>
+        ④ デプロイ → 新しいデプロイ → ウェブアプリ<br>
+        ⑤ アクセス：全員 → デプロイ<br>
+        ⑥ 表示されたURLを下に貼り付ける
+      </div>
+      <label style="font-size:13px;color:#555;display:block;margin-bottom:5px;font-weight:600">GAS ウェブアプリURL</label>
+      <div class="gas-url-row">
+        <input id="gas-url" type="text" placeholder="https://script.google.com/macros/s/...">
+        <button class="btn" style="flex:0;white-space:nowrap;padding:8px 14px;font-size:12px;font-weight:600" onclick="saveGasUrl()">✓ 保存</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+      <span style="color:#555;font-weight:500">接続状態：</span>
+      <span id="conn-status"><span class="status-dot dot-pending"></span><span style="color:#888">未設定</span></span>
+      <button class="btn" style="flex:0;padding:6px 13px;font-size:12px" onclick="testConnection()">📶 接続テスト</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let records=[];
+let currentFilter='all';
+let gasUrl='';
+
+function cleanDate(d){
+  if(!d)return'';
+  // "2026-06-05T00:48:00.000Z" → "2026/06/05 09:48"（JST+9時間）
+  if(d.indexOf('T')>-1 && d.indexOf('Z')>-1){
+    const dt=new Date(d);
+    const pad=n=>String(n).padStart(2,'0');
+    return`${dt.getFullYear()}/${pad(dt.getMonth()+1)}/${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+  }
+  // "2026-06-05T09:48" → "2026/06/05 09:48"
+  if(d.indexOf('T')>-1){
+    return d.replace('T',' ').substring(0,16).replace(/-/g,'/');
+  }
+  return d;
+}
+
+function init(){
+  try{
+    gasUrl=localStorage.getItem('gas_url')||'';
+    if(gasUrl)document.getElementById('gas-url').value=gasUrl;
+    const s=localStorage.getItem('taioh_v2');
+    if(s)records=JSON.parse(s);
+  }catch(e){}
+  setNow();
+}
+
+function setNow(){
+  const now=new Date(),pad=n=>String(n).padStart(2,'0');
+  document.getElementById('inp-date').value=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+function switchTab(tab,el){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  ['input','history','settings'].forEach(t=>document.getElementById('tab-'+t).style.display=t===tab?'block':'none');
+  if(tab==='history')loadFromSheet();
+}
+
+function saveGasUrl(){
+  const val=document.getElementById('gas-url').value.trim();
+  if(!val){showToast('URLを入力してください');return;}
+  gasUrl=val;
+  try{localStorage.setItem('gas_url',gasUrl);}catch(e){}
+  showToast('URLを保存しました');
+  testConnection();
+}
+
+function updateConnStatus(s){
+  const el=document.getElementById('conn-status');
+  if(s==='ok')el.innerHTML='<span class="status-dot dot-ok"></span><span style="color:#2e7d32;font-weight:600">接続OK</span>';
+  else if(s==='ng')el.innerHTML='<span class="status-dot dot-ng"></span><span style="color:#c62828">接続失敗</span>';
+  else if(s==='checking')el.innerHTML='<span class="spinner"></span> <span style="color:#888">確認中...</span>';
+  else el.innerHTML='<span class="status-dot dot-pending"></span><span style="color:#888">未設定</span>';
+}
+
+async function testConnection(){
+  if(!gasUrl){showToast('先にURLを設定してください');return;}
+  updateConnStatus('checking');
+  try{
+    await fetch(gasUrl,{method:'GET',mode:'no-cors'});
+    updateConnStatus('ok');showToast('接続確認できました');
+  }catch(e){updateConnStatus('ng');showToast('接続できませんでした');}
+}
+
+async function saveRecord(){
+  const client=document.getElementById('inp-client').value.trim();
+  const subject=document.getElementById('inp-subject').value.trim();
+  const staff=document.getElementById('inp-staff').value;
+  const type=document.getElementById('inp-type').value;
+  const date=document.getElementById('inp-date').value;
+  const priority=document.getElementById('inp-priority').value;
+  const content=document.getElementById('inp-content').value.trim();
+  const next=document.getElementById('inp-next').value.trim();
+  if(!client){showToast('顧客名を入力してください');return;}
+  if(!staff){showToast('担当者を選択してください');return;}
+  if(!content){showToast('対応内容を入力してください');return;}
+
+  // datetime-local値を日本語形式に変換して保存
+  const dateJST = date ? date.replace("T"," ").substring(0,16).replace(/-/g,"/") : "";
+  const rec={id:Date.now(),client,subject,staff,type,date:dateJST,priority,content,next};
+  const btn=document.getElementById('btn-save');
+  const sEl=document.getElementById('save-status');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 送信中...';
+
+  if(!gasUrl){
+    records.unshift(rec);saveLocal();clearForm();
+    btn.disabled=false;btn.innerHTML='💾 記録する';
+    sEl.innerHTML='<span style="color:#e65100">⚠ GAS未設定のためローカル保存のみ</span>';
+    showToast('ローカルに保存しました');return;
+  }
+  try{
+    await fetch(gasUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(rec)});
+    records.unshift(rec);saveLocal();clearForm();
+    sEl.innerHTML='<span style="color:#2e7d32">✓ スプレッドシートに保存しました</span>';
+    showToast('スプレッドシートに記録しました！');
+  }catch(e){
+    records.unshift(rec);saveLocal();clearForm();
+    sEl.innerHTML='<span style="color:#e65100">⚠ 通信エラー。ローカル保存しました。</span>';
+    showToast('ローカル保存しました（通信エラー）');
+  }finally{
+    btn.disabled=false;btn.innerHTML='💾 記録する';
+    setTimeout(()=>sEl.innerHTML='',5000);
+  }
+}
+
+function saveLocal(){try{localStorage.setItem('taioh_v2',JSON.stringify(records.slice(0,300)));}catch(e){}}
+
+async function loadFromSheet(){
+  const listEl=document.getElementById('history-list');
+  try{const s=localStorage.getItem('taioh_v2');if(s)records=JSON.parse(s);}catch(e){}
+  if(!gasUrl){renderList();return;}
+  listEl.innerHTML='<div class="empty"><span class="spinner"></span> スプレッドシートから取得中...</div>';
+  try{
+    const res=await fetch(gasUrl+'?t='+Date.now());
+    const json=await res.json();
+    if(json.status==='ok'&&json.records&&json.records.length>0){
+      records=json.records.map(r=>({
+        id:r['ID'],client:r['顧客名'],subject:r['表題']||'',
+        staff:r['担当者'],type:r['対応種別'],date:r['対応日時'],
+        priority:r['緊急度'],content:r['対応内容'],
+        next:r['次回アクション'],transferred:r['SJ-NET転記済']==='済'
+      }));
+      saveLocal();
+    }
+  }catch(e){}
+  renderList();
+}
+
+function clearForm(){
+  ['inp-client','inp-subject','inp-content','inp-next'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('inp-staff').value='';
+  document.getElementById('inp-priority').value='通常';
+  setNow();
+}
+
+function setFilter(f,el){
+  currentFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');renderList();
+}
+
+function getFiltered(){
+  if(currentFilter==='all')return records;
+  return records.filter(r=>r.priority===currentFilter||r.type===currentFilter);
+}
+
+function buildCopyText(r){
+  let t='【対応履歴】\n';
+  if(r.subject)t+=`表題：${r.subject}\n`;
+  t+=`日時：${cleanDate(r.date)}\n顧客：${r.client||''}\n担当：${r.staff||''}\n種別：${r.type||''}　緊急度：${r.priority||''}\n`;
+  t+='─────────────────\n対応内容：\n'+(r.content||'')+'\n';
+  if(r.next)t+='─────────────────\n次回アクション：'+r.next+'\n';
+  return t;
+}
+
+function copyForSJNET(id){
+  const r=records.find(x=>String(x.id)===String(id));
+  if(!r)return;
+  navigator.clipboard.writeText(buildCopyText(r))
+    .then(()=>showToast('コピーしました！SJ-NETに貼り付けてください'))
+    .catch(()=>showToast('コピーに失敗しました'));
+}
+
+function renderList(){
+  const filtered=getFiltered();
+  document.getElementById('rec-count').textContent=filtered.length+'件';
+  const el=document.getElementById('history-list');
+  if(filtered.length===0){el.innerHTML='<div class="empty">📋 記録がありません</div>';return;}
+  const tMap={'電話':'tag-blue','訪問':'tag-green','来店':'tag-green','メール':'tag-blue','LINE':'tag-green','その他':'tag-gray'};
+  el.innerHTML=filtered.map(r=>{
+    const cls=r.priority==='至急'?'urgent':r.priority==='要対応'?'caution':'';
+    const pTag=r.priority==='至急'?'<span class="tag tag-red">🔴 至急</span>':r.priority==='要対応'?'<span class="tag tag-amber">🟠 要対応</span>':'<span class="tag tag-gray">通常</span>';
+    const tTag=`<span class="tag ${tMap[r.type]||'tag-gray'}">${r.type||''}</span>`;
+    const sid=String(r.id).replace(/'/g,"\\'");
+    return`<div class="history-item ${cls}">
+      <div class="history-meta">${pTag}${tTag}<span class="history-time">${cleanDate(r.date)} / ${r.staff||''}</span>${r.transferred?'<span class="tag tag-ok">✓SJ済</span>':''}</div>
+      <div class="history-client">${r.client||''}</div>
+      ${r.subject?`<div class="history-subject"><span class="tag tag-purple">📌 ${r.subject}</span></div>`:''}
+      <hr class="divider">
+      <div class="history-content">${(r.content||'').replace(/\n/g,'<br>')}</div>
+      ${r.next?`<div style="font-size:12px;color:#999;margin-bottom:9px">▶ 次回：${r.next}</div>`:''}
+      <div class="btn-row">
+        <button class="btn success" style="font-size:12px;padding:7px 10px" onclick="copyForSJNET('${sid}')">📋 SJ-NET用コピー</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+init();
+</script>
+</body>
+</html>
