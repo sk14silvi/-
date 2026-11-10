@@ -28,6 +28,8 @@ h1{font-size:15px;font-weight:700;text-align:center;padding:14px;background:#1a1
 .btn.primary:hover{opacity:0.88}
 .btn.success{background:#f0faf0;color:#1b5e20;border-color:#a5d6a7}
 .btn.success:hover{background:#e0f5e0}
+.btn.edit{background:#fff8e1;color:#6d4c00;border-color:#ffe082}
+.btn.edit:hover{background:#ffefb8}
 .tag{display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;line-height:1.4}
 .tag-blue{background:#e8f0fe;color:#1a56cc}
 .tag-amber{background:#fff3e0;color:#e65100}
@@ -63,6 +65,8 @@ h1{font-size:15px;font-weight:700;text-align:center;padding:14px;background:#1a1
 .toast.show{opacity:1}
 .save-status{margin-top:9px;font-size:12px;text-align:center;min-height:18px}
 .divider{border:none;border-top:1px solid #eee;margin:10px 0}
+.edit-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 13px;margin-bottom:1rem;font-size:13px;color:#6d4c00}
+.edit-banner .btn{flex:0;padding:6px 12px;font-size:12px;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -75,8 +79,12 @@ h1{font-size:15px;font-weight:700;text-align:center;padding:14px;background:#1a1
   <button class="tab" onclick="switchTab('settings',this)">⚙️ 設定</button>
 </div>
 
-<!-- 新規記録 -->
+<!-- 新規記録 / 訂正 -->
 <div id="tab-input">
+  <div class="edit-banner" id="edit-banner" style="display:none">
+    <span>✏️ 訂正モード：<strong id="edit-target"></strong></span>
+    <button class="btn" onclick="cancelEdit()">キャンセル</button>
+  </div>
   <div class="section">
     <div class="sec-title">顧客・対応情報</div>
     <div class="field">
@@ -198,10 +206,11 @@ h1{font-size:15px;font-weight:700;text-align:center;padding:14px;background:#1a1
 let records=[];
 let currentFilter='all';
 let gasUrl='';
+let editingId=null; // 訂正中の記録ID（null=新規記録モード）
 
 function cleanDate(d){
   if(!d)return'';
-  // "2026-06-05T00:48:00.000Z" → "2026/06/05 09:48"（JST+9時間）
+  // "2026-06-05T00:48:00.000Z" → 日本時間 "2026/06/05 09:48"
   if(d.indexOf('T')>-1 && d.indexOf('Z')>-1){
     const dt=new Date(d);
     const pad=n=>String(n).padStart(2,'0');
@@ -212,6 +221,17 @@ function cleanDate(d){
     return d.replace('T',' ').substring(0,16).replace(/-/g,'/');
   }
   return d;
+}
+
+// "2026/06/05 09:48" → datetime-local用 "2026-06-05T09:48"
+function toDateInputValue(s){
+  const m=(cleanDate(s)||'').match(/(\d{4})\/(\d{2})\/(\d{2})[ T](\d{2}):(\d{2})/);
+  return m?`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}`:'';
+}
+
+function nowStamp(){
+  const n=new Date(),pad=x=>String(x).padStart(2,'0');
+  return`${n.getFullYear()}/${pad(n.getMonth()+1)}/${pad(n.getDate())} ${pad(n.getHours())}:${pad(n.getMinutes())}`;
 }
 
 function init(){
@@ -262,6 +282,50 @@ async function testConnection(){
   }catch(e){updateConnStatus('ng');showToast('接続できませんでした');}
 }
 
+// ---- 訂正モード ----
+function startEdit(id){
+  const r=records.find(x=>String(x.id)===String(id));
+  if(!r)return;
+  editingId=r.id;
+  document.getElementById('inp-client').value=r.client||'';
+  document.getElementById('inp-subject').value=r.subject||'';
+  document.getElementById('inp-staff').value=r.staff||'';
+  document.getElementById('inp-type').value=r.type||'電話';
+  document.getElementById('inp-date').value=toDateInputValue(r.date)||document.getElementById('inp-date').value;
+  document.getElementById('inp-priority').value=r.priority||'通常';
+  document.getElementById('inp-content').value=r.content||'';
+  document.getElementById('inp-next').value=r.next||'';
+  document.getElementById('edit-target').textContent=`${r.client||''}（${cleanDate(r.date)}）`;
+  document.getElementById('edit-banner').style.display='flex';
+  document.getElementById('btn-save').innerHTML='💾 訂正して保存';
+  document.getElementById('save-status').innerHTML='';
+  switchTab('input',document.querySelectorAll('.tab')[0]);
+  window.scrollTo(0,0);
+}
+
+function cancelEdit(){
+  exitEditMode();
+  clearForm();
+  showToast('訂正をキャンセルしました');
+}
+
+function exitEditMode(){
+  editingId=null;
+  document.getElementById('edit-banner').style.display='none';
+  document.getElementById('btn-save').innerHTML='💾 記録する';
+}
+
+// 送信成功・ローカル保存後に、画面の記録データを更新
+function applyLocal(rec,isEdit){
+  if(isEdit){
+    const i=records.findIndex(x=>String(x.id)===String(rec.id));
+    if(i>-1)records[i]={...records[i],...rec,updated:nowStamp()};
+  }else{
+    records.unshift(rec);
+  }
+  saveLocal();
+}
+
 async function saveRecord(){
   const client=document.getElementById('inp-client').value.trim();
   const subject=document.getElementById('inp-subject').value.trim();
@@ -277,29 +341,33 @@ async function saveRecord(){
 
   // datetime-local値を日本語形式に変換して保存
   const dateJST = date ? date.replace("T"," ").substring(0,16).replace(/-/g,"/") : "";
-  const rec={id:Date.now(),client,subject,staff,type,date:dateJST,priority,content,next};
+  const isEdit = editingId!==null;
+  const rec={id:isEdit?editingId:Date.now(),client,subject,staff,type,date:dateJST,priority,content,next};
+  const payload = isEdit ? {...rec, action:'update'} : rec;
   const btn=document.getElementById('btn-save');
   const sEl=document.getElementById('save-status');
   btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 送信中...';
 
   if(!gasUrl){
-    records.unshift(rec);saveLocal();clearForm();
+    applyLocal(rec,isEdit);clearForm();exitEditMode();
     btn.disabled=false;btn.innerHTML='💾 記録する';
     sEl.innerHTML='<span style="color:#e65100">⚠ GAS未設定のためローカル保存のみ</span>';
-    showToast('ローカルに保存しました');return;
+    showToast(isEdit?'ローカルで訂正しました':'ローカルに保存しました');return;
   }
   try{
-    await fetch(gasUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(rec)});
-    records.unshift(rec);saveLocal();clearForm();
-    sEl.innerHTML='<span style="color:#2e7d32">✓ スプレッドシートに保存しました</span>';
-    showToast('スプレッドシートに記録しました！');
+    await fetch(gasUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    applyLocal(rec,isEdit);clearForm();exitEditMode();
+    sEl.innerHTML=isEdit
+      ?'<span style="color:#2e7d32">✓ 訂正を送信しました（📋履歴一覧の🔄更新で反映をご確認ください）</span>'
+      :'<span style="color:#2e7d32">✓ スプレッドシートに保存しました</span>';
+    showToast(isEdit?'訂正を送信しました':'スプレッドシートに記録しました！');
   }catch(e){
-    records.unshift(rec);saveLocal();clearForm();
+    applyLocal(rec,isEdit);clearForm();exitEditMode();
     sEl.innerHTML='<span style="color:#e65100">⚠ 通信エラー。ローカル保存しました。</span>';
     showToast('ローカル保存しました（通信エラー）');
   }finally{
     btn.disabled=false;btn.innerHTML='💾 記録する';
-    setTimeout(()=>sEl.innerHTML='',5000);
+    setTimeout(()=>sEl.innerHTML='',6000);
   }
 }
 
@@ -318,7 +386,8 @@ async function loadFromSheet(){
         id:r['ID'],client:r['顧客名'],subject:r['表題']||'',
         staff:r['担当者'],type:r['対応種別'],date:r['対応日時'],
         priority:r['緊急度'],content:r['対応内容'],
-        next:r['次回アクション'],transferred:r['SJ-NET転記済']==='済'
+        next:r['次回アクション'],transferred:r['SJ-NET転記済']==='済',
+        updated:r['最終更新']||''
       }));
       saveLocal();
     }
@@ -331,6 +400,7 @@ function clearForm(){
   document.getElementById('inp-staff').value='';
   document.getElementById('inp-priority').value='通常';
   setNow();
+  exitEditMode();
 }
 
 function setFilter(f,el){
@@ -371,15 +441,17 @@ function renderList(){
     const cls=r.priority==='至急'?'urgent':r.priority==='要対応'?'caution':'';
     const pTag=r.priority==='至急'?'<span class="tag tag-red">🔴 至急</span>':r.priority==='要対応'?'<span class="tag tag-amber">🟠 要対応</span>':'<span class="tag tag-gray">通常</span>';
     const tTag=`<span class="tag ${tMap[r.type]||'tag-gray'}">${r.type||''}</span>`;
+    const uTag=r.updated?`<span class="tag tag-amber">✏️ 訂正 ${cleanDate(r.updated)}</span>`:'';
     const sid=String(r.id).replace(/'/g,"\\'");
     return`<div class="history-item ${cls}">
-      <div class="history-meta">${pTag}${tTag}<span class="history-time">${cleanDate(r.date)} / ${r.staff||''}</span>${r.transferred?'<span class="tag tag-ok">✓SJ済</span>':''}</div>
+      <div class="history-meta">${pTag}${tTag}<span class="history-time">${cleanDate(r.date)} / ${r.staff||''}</span>${r.transferred?'<span class="tag tag-ok">✓SJ済</span>':''}${uTag}</div>
       <div class="history-client">${r.client||''}</div>
       ${r.subject?`<div class="history-subject"><span class="tag tag-purple">📌 ${r.subject}</span></div>`:''}
       <hr class="divider">
       <div class="history-content">${(r.content||'').replace(/\n/g,'<br>')}</div>
       ${r.next?`<div style="font-size:12px;color:#999;margin-bottom:9px">▶ 次回：${r.next}</div>`:''}
       <div class="btn-row">
+        <button class="btn edit" style="font-size:12px;padding:7px 10px" onclick="startEdit('${sid}')">✏️ 訂正</button>
         <button class="btn success" style="font-size:12px;padding:7px 10px" onclick="copyForSJNET('${sid}')">📋 SJ-NET用コピー</button>
       </div>
     </div>`;
